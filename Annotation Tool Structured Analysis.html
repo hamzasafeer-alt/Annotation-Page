@@ -1,0 +1,2915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Annotation Studio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+<script src="https://unpkg.com/docx@9.6.1/dist/index.iife.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/diff-match-patch-js-browser-and-nodejs@1.0.2/diff_match_patch.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f4efe6;
+    --bg-2: #ebe3d4;
+    --paper: #fbf7ef;
+    --ink: #1a1916;
+    --ink-soft: #4a463d;
+    --ink-muted: #837c6c;
+    --line: #d9d0bd;
+    --line-soft: #e5dcc8;
+    --accent: #1d4a3e;
+    --accent-soft: #d6e3dc;
+    --yes: #1d4a3e;
+    --yes-soft: #d6e3dc;
+    --no: #8a2a1a;
+    --no-soft: #efd7d0;
+    --unset: #837c6c;
+    --warn: #a36b1f;
+    --shadow: 0 1px 0 rgba(26,25,22,.04), 0 8px 24px -12px rgba(26,25,22,.18);
+    --radius: 4px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(29,74,62,.04) 0, transparent 40%),
+      radial-gradient(circle at 80% 100%, rgba(163,107,31,.04) 0, transparent 40%);
+    min-height: 100vh;
+  }
+
+  .display { font-family: 'Fraunces', serif; font-feature-settings: 'ss01'; letter-spacing: -0.01em; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.86em; }
+
+  /* ---------- Layout ---------- */
+  .top-bar {
+    position: sticky; top: 0; z-index: 30;
+    backdrop-filter: blur(14px);
+    background: rgba(244,239,230,.88);
+    border-bottom: 1px solid var(--line);
+  }
+  .top-bar-inner {
+    max-width: 1400px; margin: 0 auto;
+    padding: 14px 28px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 600; font-size: 20px;
+    font-feature-settings: 'ss01';
+    letter-spacing: -0.02em;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .brand::before {
+    content: ""; width: 10px; height: 10px;
+    background: var(--accent); border-radius: 50%;
+    display: inline-block;
+  }
+  .brand em { font-style: italic; color: var(--ink-soft); font-weight: 400; }
+
+  .top-bar .spacer { flex: 1; }
+  .top-bar .progress {
+    display: flex; align-items: center; gap: 14px;
+    font-size: 13px; color: var(--ink-soft);
+  }
+  .progress-bar {
+    width: 200px; height: 6px; background: var(--line-soft);
+    border-radius: 99px; overflow: hidden; position: relative;
+  }
+  .progress-bar > div {
+    height: 100%; background: var(--accent);
+    transition: width .3s ease;
+  }
+  .progress-stats { font-variant-numeric: tabular-nums; }
+  .progress-stats b { color: var(--ink); font-weight: 600; }
+
+  .container {
+    max-width: 1400px; margin: 0 auto;
+    padding: 28px;
+  }
+
+  /* ---------- Setup screen ---------- */
+  .setup-screen {
+    max-width: 760px; margin: 64px auto;
+    padding: 0 28px;
+  }
+  .setup-hero {
+    text-align: center; margin-bottom: 56px;
+  }
+  .setup-hero h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500; font-size: 64px;
+    line-height: 1; letter-spacing: -0.03em;
+    margin: 0 0 18px;
+  }
+  .setup-hero h1 em { font-style: italic; color: var(--accent); }
+  .setup-hero p {
+    color: var(--ink-soft); font-size: 17px; max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .upload-grid { display: grid; gap: 18px; margin-bottom: 32px; }
+
+  .upload-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 28px;
+    position: relative;
+    transition: border-color .2s, transform .2s;
+  }
+  .upload-card.has-file {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, var(--paper) 0%, var(--accent-soft) 200%);
+  }
+  .upload-card .step {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--ink-muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .upload-card h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 500; font-size: 26px;
+    margin: 4px 0 6px; letter-spacing: -0.01em;
+  }
+  .upload-card .hint {
+    color: var(--ink-soft); font-size: 14px; margin-bottom: 18px;
+  }
+  .upload-card .file-input {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px dashed var(--line);
+    padding: 14px 16px; border-radius: var(--radius);
+    background: rgba(255,255,255,.4);
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .upload-card .file-input:hover { border-color: var(--accent); background: rgba(255,255,255,.7); }
+  .upload-card.has-file .file-input {
+    border-style: solid; border-color: var(--accent);
+    background: rgba(255,255,255,.6);
+  }
+  .upload-card input[type=file] { display: none; }
+  .upload-card .file-label {
+    flex: 1; font-size: 14px;
+  }
+  .upload-card .file-label .name { font-weight: 500; }
+  .upload-card .file-label .stats { color: var(--ink-muted); font-size: 12px; margin-top: 2px; }
+  .upload-card .check {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    opacity: 0; transition: opacity .2s;
+  }
+  .upload-card.has-file .check { opacity: 1; }
+
+  .col-mapping {
+    margin-top: 14px; display: none;
+    background: rgba(255,255,255,.5);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .upload-card.has-file .col-mapping { display: block; }
+  .col-mapping label {
+    display: flex; align-items: center; gap: 10px;
+    margin: 6px 0;
+  }
+  .col-mapping label span:first-child {
+    width: 90px; color: var(--ink-soft); font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .col-mapping select {
+    flex: 1; padding: 6px 10px;
+    border: 1px solid var(--line); border-radius: 3px;
+    background: white; font-family: inherit; font-size: 13px;
+    color: var(--ink);
+  }
+
+  .tax-preview {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+  }
+  .tax-preview-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-muted);
+    margin-bottom: 6px;
+  }
+  .tax-preview-list {
+    margin: 0; padding-left: 22px;
+    font-size: 13px; color: var(--ink-soft);
+    line-height: 1.6;
+  }
+  .tax-preview-list li.more {
+    list-style: none; margin-left: -22px;
+    color: var(--ink-muted); font-style: italic;
+    font-size: 12px;
+  }
+  .tax-preview-list li.case-id-preview {
+    list-style: none; margin-left: -22px;
+    color: var(--accent);
+    font-weight: 500;
+    margin-bottom: 6px;
+  }
+  .case-id-tag {
+    display: inline-block;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 2px;
+    margin-left: 6px;
+    vertical-align: 1px;
+  }
+  /* Case identifier badge in the conversation header */
+  .case-badge {
+    background: var(--accent);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .case-badge-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 4px;
+  }
+
+  /* Docx mode: filename tag next to the section header in the conv body */
+  .docx-filename-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-muted);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 10px;
+    background: var(--bg-2);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
+  /* Docx mode: file → section mapping panel on the setup screen */
+  .docx-mapping {
+    display: flex; flex-direction: column; gap: 6px;
+    margin: 4px 0 8px;
+  }
+  .docx-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 60px;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    background: rgba(255,255,255,.5);
+    border-radius: 3px;
+    font-size: 13px;
+  }
+  .docx-row-section {
+    font-weight: 500; color: var(--ink);
+  }
+  .docx-row-select {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: white;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+  .docx-row-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-align: right;
+  }
+  .docx-row-status.ok { color: var(--accent); }
+  .docx-row-status.missing { color: var(--ink-muted); font-style: italic; }
+  .case-name-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: white;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .case-name-input:focus {
+    outline: none; border-color: var(--accent);
+  }
+
+  .docx-warning {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(163,107,31,.08);
+    border-left: 2px solid var(--warn);
+    color: var(--warn);
+    font-size: 12px;
+    border-radius: 2px;
+  }
+
+  /* ---------- Document editing & history ---------- */
+  .doc-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .doc-label-text {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .doc-toolbar-actions {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .doc-tool-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    padding: 4px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .doc-tool-btn:hover { color: var(--ink); border-color: var(--ink-soft); }
+  .doc-tool-btn.active {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .doc-tool-btn.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .history-count {
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-size: 10px;
+    margin-left: 2px;
+  }
+  .doc-tool-btn.active .history-count {
+    background: rgba(255,255,255,.2); color: white;
+  }
+  .edit-tag {
+    display: inline-block;
+    background: rgba(163,107,31,.15);
+    color: var(--warn);
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+  .conv-text.editor {
+    background: var(--paper);
+    border: 1px solid var(--accent);
+    outline: none;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    min-height: 100px;
+    cursor: text;
+    box-shadow: 0 0 0 3px rgba(29,74,62,.08);
+  }
+  .conv-text.editor:focus { outline: none; }
+  .conv-text.previewing-history {
+    background: rgba(163,107,31,.06);
+    border-left: 3px solid var(--warn);
+    padding-left: 14px;
+  }
+  .editor-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--ink-muted);
+    font-style: italic;
+  }
+  .history-preview-banner {
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--bg-2);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap;
+  }
+  .link-btn {
+    background: none; border: none; padding: 0;
+    color: var(--accent);
+    font-family: inherit; font-size: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .link-btn:hover { color: var(--ink); }
+
+  .history-panel {
+    margin: 0 -1px;
+    border-top: 1px solid var(--line-soft);
+    background: var(--bg-2);
+    padding: 0;
+  }
+  .history-panel-header {
+    padding: 10px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex; align-items: center;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .history-list {
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .history-item {
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line-soft);
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .history-item:hover { background: rgba(255,255,255,.5); }
+  .history-item.active {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding-left: 15px;
+  }
+  .history-item-title {
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .history-item-meta {
+    font-size: 11px;
+    color: var(--ink-muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .setup-actions {
+    display: flex; gap: 12px; align-items: center;
+    margin-top: 12px;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px;
+    border: 1px solid var(--ink);
+    background: var(--ink); color: var(--paper);
+    font-family: inherit; font-size: 14px; font-weight: 500;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform .15s, background .15s;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-1px); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--ink); border-color: var(--line);
+  }
+  .btn.ghost:hover:not(:disabled) { border-color: var(--ink); }
+  .btn.accent {
+    background: var(--accent); border-color: var(--accent);
+  }
+  .btn.small { padding: 8px 14px; font-size: 13px; }
+
+  .resume-banner {
+    margin-top: 24px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    padding: 16px 20px; border-radius: var(--radius);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .resume-banner .icon { font-size: 20px; }
+  .resume-banner .text { flex: 1; font-size: 14px; }
+  .resume-banner b { color: var(--ink); }
+
+  /* ---------- Annotate screen ---------- */
+  .work-layout {
+    display: grid;
+    grid-template-columns: minmax(380px, 4fr) minmax(520px, 6fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .conv-panel {
+    position: sticky; top: 80px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    max-height: calc(100vh - 110px);
+    display: flex; flex-direction: column;
+  }
+  .conv-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line-soft);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--bg-2);
+  }
+  .conv-num {
+    font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .conv-num em { color: var(--ink-muted); font-style: italic; font-weight: 400; }
+  .conv-nav { display: flex; gap: 4px; align-items: center; }
+  .nav-btn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--line); background: var(--paper);
+    border-radius: 3px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft); font-size: 14px;
+    transition: all .15s;
+  }
+  .nav-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
+  .conv-jump {
+    border: 1px solid var(--line); background: var(--paper);
+    border-radius: 3px; padding: 4px 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    width: 56px; text-align: center;
+    color: var(--ink);
+  }
+
+  .conv-body {
+    overflow-y: auto; flex: 1;
+  }
+  .conv-block {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .conv-block:last-child { border-bottom: none; }
+  .conv-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ink-muted);
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .conv-label::after {
+    content: ""; flex: 1; height: 1px; background: var(--line-soft);
+  }
+  .conv-label.prompt { color: var(--accent); }
+  .conv-label.prompt::before { content: "→"; }
+  .conv-label.response::before { content: "←"; }
+  .conv-text {
+    font-size: 14.5px; line-height: 1.6;
+    word-wrap: break-word;
+    color: var(--ink);
+  }
+  .conv-text.empty { color: var(--ink-muted); font-style: italic; }
+  /* Markdown element styling inside conv-text */
+  .conv-text p { margin: 0 0 10px; }
+  .conv-text p:last-child { margin-bottom: 0; }
+  .conv-text h1, .conv-text h2, .conv-text h3, .conv-text h4 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 14px 0 6px;
+    line-height: 1.25;
+  }
+  .conv-text h1 { font-size: 20px; }
+  .conv-text h2 { font-size: 18px; }
+  .conv-text h3 { font-size: 16px; }
+  .conv-text h4 { font-size: 15px; }
+  .conv-text ul, .conv-text ol { margin: 6px 0 10px; padding-left: 22px; }
+  .conv-text li { margin: 3px 0; }
+  .conv-text li > p { margin: 0; }
+  .conv-text strong { font-weight: 600; color: var(--ink); }
+  .conv-text em { font-style: italic; }
+  .conv-text a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  .conv-text code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+    background: var(--bg-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .conv-text pre {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin: 8px 0 12px;
+  }
+  .conv-text pre code {
+    background: transparent;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+  .conv-text blockquote {
+    border-left: 3px solid var(--line);
+    padding-left: 12px;
+    margin: 8px 0;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .conv-text table {
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+  .conv-text th, .conv-text td {
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    text-align: left;
+  }
+  .conv-text th { background: var(--bg-2); font-weight: 600; }
+  .conv-text hr { border: none; border-top: 1px solid var(--line); margin: 12px 0; }
+
+  /* Overall notes block */
+  .conv-block.notes-block { background: rgba(214,227,220,.25); }
+  .conv-notes-input {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 3px;
+    padding: 10px 12px;
+    font-family: inherit; font-size: 14px;
+    color: var(--ink); resize: vertical;
+    min-height: 70px;
+    line-height: 1.55;
+    transition: border-color .15s, background .15s;
+  }
+  .conv-notes-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: white;
+  }
+  .conv-notes-input::placeholder { color: var(--ink-muted); font-style: italic; }
+  .view-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: auto;
+    font-size: 11px; color: var(--ink-muted);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+  .view-toggle input { margin: 0; }
+
+  /* ---------- Taxonomy panel ---------- */
+  .tax-panel { display: flex; flex-direction: column; gap: 10px; }
+  .tax-summary {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0;
+    font-size: 13px;
+    overflow: hidden;
+  }
+  .summary-row {
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 18px;
+  }
+  .section-tabs {
+    display: flex; gap: 4px;
+    padding: 10px 12px 0;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--line-soft);
+    flex-wrap: nowrap;
+  }
+  .section-tab {
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+    border-bottom: none;
+    background: var(--bg-2);
+    padding: 8px 14px 10px;
+    border-radius: 4px 4px 0 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--ink-soft);
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    transition: all .15s;
+    position: relative;
+    top: 1px;
+  }
+  .section-tab:hover { color: var(--ink); background: var(--paper); }
+  .section-tab.active {
+    background: var(--paper);
+    border-color: var(--line);
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .section-tab.active::after {
+    content: ''; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 2px; background: var(--paper);
+  }
+  .section-tab.complete .section-tab-count {
+    color: var(--yes);
+  }
+  .section-tab-name {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    letter-spacing: -0.005em;
+  }
+  .section-tab-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    color: var(--ink-muted);
+  }
+  .section-tab.active .section-tab-count { color: var(--ink-soft); }
+
+  .section-summary-list {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-top: 4px;
+  }
+  .section-summary-item {
+    display: flex; justify-content: space-between;
+    padding: 6px 10px;
+    background: rgba(255,255,255,.5);
+    border-radius: 3px;
+    font-size: 13px;
+  }
+  .section-summary-name {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .section-summary-count {
+    color: var(--ink-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+  .summary-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .summary-chip .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .summary-chip.yes .dot { background: var(--yes); }
+  .summary-chip.no .dot { background: var(--no); }
+  .summary-chip.pending .dot { background: var(--line); border: 1px solid var(--ink-muted); }
+  .summary-chip b { color: var(--ink); font-weight: 600; }
+  .tax-summary .spacer { flex: 1; }
+  .filter-toggle {
+    display: flex; gap: 0; border: 1px solid var(--line);
+    border-radius: 3px; overflow: hidden;
+  }
+  .filter-toggle button {
+    border: none; background: var(--paper);
+    padding: 5px 12px; font-family: inherit; font-size: 12px;
+    color: var(--ink-soft); cursor: pointer;
+    border-right: 1px solid var(--line);
+  }
+  .filter-toggle button:last-child { border-right: none; }
+  .filter-toggle button.active { background: var(--ink); color: var(--paper); }
+
+  .tax-item {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .tax-item.yes { border-left: 3px solid var(--yes); }
+  .tax-item.no { border-left: 3px solid var(--no); }
+  .tax-item.unset { border-left: 3px solid transparent; }
+  .tax-item.hidden { display: none; }
+
+  .tax-row {
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    gap: 14px; align-items: center;
+  }
+  .tax-index {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .tax-name {
+    font-family: 'Fraunces', serif;
+    font-size: 18px; font-weight: 500;
+    letter-spacing: -0.005em;
+    line-height: 1.3;
+  }
+
+  .toggle-group {
+    display: flex; border: 1px solid var(--line);
+    border-radius: 99px; overflow: hidden;
+    background: var(--bg);
+  }
+  .toggle-btn {
+    border: none; background: transparent;
+    padding: 6px 18px;
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    color: var(--ink-muted);
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em;
+    text-transform: uppercase; font-size: 11px;
+  }
+  .toggle-btn:hover { color: var(--ink); }
+  .toggle-btn.active.yes-btn { background: var(--yes); color: white; }
+  .toggle-btn.active.no-btn { background: var(--no); color: white; }
+
+  .note-wrap {
+    padding: 0 18px 14px 62px;
+  }
+  .note-input {
+    width: 100%;
+    border: 1px solid var(--line-soft);
+    background: var(--bg);
+    border-radius: 3px;
+    padding: 10px 12px;
+    font-family: inherit; font-size: 13.5px;
+    color: var(--ink); resize: vertical;
+    min-height: 38px;
+    line-height: 1.5;
+    transition: border-color .15s, background .15s;
+  }
+  .note-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: white;
+  }
+  .note-input::placeholder { color: var(--ink-muted); font-style: italic; }
+
+  /* ---------- Footer / actions ---------- */
+  .bottom-actions {
+    margin-top: 28px;
+    padding: 20px 0;
+    border-top: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .save-indicator {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--ink-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .save-indicator .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+  }
+  .save-indicator.saving .dot { background: var(--warn); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: var(--paper);
+    padding: 12px 20px; border-radius: var(--radius);
+    font-size: 14px; z-index: 100;
+    transition: transform .3s ease;
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,.3);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .error-banner {
+    background: var(--no-soft); border: 1px solid var(--no);
+    color: var(--no); padding: 12px 16px;
+    border-radius: var(--radius); margin: 12px 0;
+    font-size: 14px;
+  }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .work-layout { grid-template-columns: 1fr; }
+    .conv-panel { position: static; max-height: 400px; }
+    .setup-hero h1 { font-size: 44px; }
+    .top-bar .progress { display: none; }
+    .container { padding: 18px; }
+    .top-bar-inner { padding: 12px 18px; }
+  }
+
+  .kbd {
+    display: inline-block;
+    border: 1px solid var(--line); border-bottom-width: 2px;
+    background: var(--paper); border-radius: 3px;
+    padding: 1px 6px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar" class="top-bar" style="display:none;">
+  <div class="top-bar-inner">
+    <div class="brand">Annotation <em>Studio</em></div>
+    <div class="spacer"></div>
+    <div class="progress">
+      <span class="progress-stats">
+        <b id="prog-done">0</b> of <b id="prog-total">0</b> annotated
+      </span>
+      <div class="progress-bar"><div id="prog-fill" style="width:0%"></div></div>
+      <button class="btn ghost small" onclick="exportData()">Export Excel</button>
+      <button class="btn ghost small docx-export-btn" onclick="exportEditedDocuments()" id="docx-export-btn" style="display:none;">Export documents</button>
+      <button class="btn ghost small" onclick="confirmReset()">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div id="app"></div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* =========================================================
+   ANNOTATION STUDIO
+   ========================================================= */
+
+const STORAGE_KEY = 'annotation-session-v1';
+
+const state = {
+  view: 'setup',
+  promptsFile: null,
+  promptsRows: [],
+  promptsHeaders: [],
+  promptCol: null,
+  responseCol: null,
+  taxonomyFile: null,
+  taxonomyItems: [],        // flat list of all toggleable items across all sections
+  taxonomyRawItems: [],     // full list before excluding caseIdField (single-sheet legacy)
+  taxonomySectionMap: [],   // parallel array: section name for each item in taxonomyItems
+  taxonomySectionNames: [], // ordered unique section names (= sheet names for multi-sheet)
+  isMultiSheet: false,      // true when the taxonomy workbook had >1 sheet
+  activeSectionTab: null,   // currently visible section in the annotator (null = all)
+  caseIdField: null,        // name of the case identifier (excluded from toggles)
+  caseIdAutoDetected: false,
+  taxonomyRawRows: [],      // single-sheet only: full sheet as array-of-arrays
+  taxonomyHeaders: [],      // single-sheet only: column labels
+  taxonomyColIdx: 0,        // single-sheet only: which column is selected
+  taxonomySkipFirst: true,  // single-sheet only: skip header row
+  conversations: [],
+  annotations: {},  // { convIdx: { taxIdx: { value: 'yes'|'no'|null, note: '' } } }
+  conversationNotes: {}, // { convIdx: 'overall note string' }
+  currentIndex: 0,
+  filter: 'all',    // 'all' | 'pending' | 'yes' | 'no'
+
+  // ---- Docx mode (Structured Analysis: one case = N docx files) ----
+  inputMode: 'excel',          // 'excel' | 'docx'
+  caseName: null,              // extracted from common filename prefix
+  sectionDocuments: {},        // { sectionName: { filename, html, originalHtml, warnings } }
+  docxAssignments: {},         // { sectionName: filename } — manual mapping override
+  pendingDocxFiles: [],        // raw file list before processing
+
+  // ---- Editing & version history ----
+  editingSection: null,        // section name currently being edited (null = view mode)
+  sectionEdits: {},            // { sectionName: { currentHtml, history: [{ts, html, summary}] } }
+  showHistory: false,          // panel visibility for the active section
+  selectedHistoryTs: null,     // timestamp of the snapshot the user is previewing
+};
+
+let saveTimer = null;
+
+/* ---------- Persistence ---------- */
+async function saveSession(showIndicator = true) {
+  if (showIndicator) setSaveIndicator('saving');
+  try {
+    const payload = {
+      promptsHeaders: state.promptsHeaders,
+      promptCol: state.promptCol,
+      responseCol: state.responseCol,
+      taxonomyItems: state.taxonomyItems,
+      taxonomySectionMap: state.taxonomySectionMap,
+      taxonomySectionNames: state.taxonomySectionNames,
+      isMultiSheet: state.isMultiSheet,
+      activeSectionTab: state.activeSectionTab,
+      caseIdField: state.caseIdField,
+      inputMode: state.inputMode,
+      caseName: state.caseName,
+      sectionDocuments: state.sectionDocuments,
+      sectionEdits: state.sectionEdits,
+      conversations: state.conversations,
+      annotations: state.annotations,
+      conversationNotes: state.conversationNotes,
+      currentIndex: state.currentIndex,
+      savedAt: new Date().toISOString(),
+    };
+    await window.storage.set(STORAGE_KEY, JSON.stringify(payload));
+    if (showIndicator) setTimeout(() => setSaveIndicator('saved'), 400);
+  } catch (e) {
+    console.error('Save failed', e);
+    if (showIndicator) setSaveIndicator('error');
+  }
+}
+
+function scheduleSave() {
+  setSaveIndicator('saving');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveSession(true), 600);
+}
+
+async function loadSession() {
+  try {
+    const r = await window.storage.get(STORAGE_KEY);
+    if (!r) return null;
+    return JSON.parse(r.value);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function clearSession() {
+  try { await window.storage.delete(STORAGE_KEY); } catch(e) {}
+}
+
+function setSaveIndicator(status) {
+  const el = document.getElementById('save-indicator');
+  if (!el) return;
+  el.className = 'save-indicator ' + (status === 'saving' ? 'saving' : '');
+  el.querySelector('.label').textContent =
+    status === 'saving' ? 'Saving…' :
+    status === 'error' ? 'Save error' :
+    'All changes saved';
+}
+
+/* ---------- Toast ---------- */
+function toast(msg, ms = 2400) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ---------- Render: Setup ---------- */
+function renderSetup(existingSession) {
+  document.getElementById('topbar').style.display = 'none';
+  const root = document.getElementById('app');
+
+  root.innerHTML = `
+    <div class="setup-screen">
+      <div class="setup-hero">
+        <h1>Annotation <em>Studio</em></h1>
+        <p>Drop in your conversations and taxonomy, then work through each prompt-response pair with a clear Yes/No call and a note for every category.</p>
+      </div>
+
+      ${existingSession ? `
+        <div class="resume-banner">
+          <div class="icon">↺</div>
+          <div class="text">
+            <b>You have a saved session</b> — ${existingSession.conversations.length} conversations,
+            ${countAnnotated(existingSession.annotations)} annotated.
+            Last saved ${formatTime(existingSession.savedAt)}.
+          </div>
+          <button class="btn small" onclick="resumeSession()">Resume</button>
+          <button class="btn ghost small" onclick="discardSession()">Start fresh</button>
+        </div>
+      ` : ''}
+
+      <div class="upload-grid">
+        <div class="upload-card ${(state.promptsRows.length || state.inputMode === 'docx') ? 'has-file' : ''}" id="prompts-card">
+          <div class="step">Step 01</div>
+          <h3>Structured Analysis</h3>
+          <p class="hint">
+            ${state.inputMode === 'docx' || !state.promptsFile
+              ? `Upload the ${state.taxonomySectionNames.length || '5'} .docx files — one analysis document per section of the case.`
+              : 'Drop in the structured analysis as multiple .docx files (one per section).'}
+          </p>
+          <label class="file-input">
+            <input type="file" accept=".docx" multiple onchange="handleConversationsFiles(event)" />
+            <div class="file-label">
+              ${state.promptsFile ? `
+                <div class="name">${state.promptsFile}</div>
+                <div class="stats">${state.promptsRows.length} rows • ${state.promptsHeaders.length} columns</div>
+              ` : state.inputMode === 'docx' ? `
+                <div class="name">${Object.keys(state.sectionDocuments).length} of ${state.taxonomySectionNames.length || 5} documents loaded${state.caseName ? ` · ${escapeHtml(state.caseName)}` : ''}</div>
+                <div class="stats">.docx files (one per section)</div>
+              ` : `
+                <div class="name">Choose the section .docx files…</div>
+                <div class="stats">Select all ${state.taxonomySectionNames.length || 5} at once — they'll auto-match to sections</div>
+              `}
+            </div>
+            <div class="check">✓</div>
+          </label>
+          ${state.inputMode === 'excel' && state.promptsFile ? `
+            <div class="col-mapping" style="display:block;">
+              <label>
+                <span>Prompt</span>
+                <select onchange="state.promptCol = this.value; renderSetup();">
+                  ${state.promptsHeaders.map(h => `<option value="${escapeAttr(h)}" ${h===state.promptCol?'selected':''}>${escapeHtml(h)}</option>`).join('')}
+                </select>
+              </label>
+              <label>
+                <span>Response</span>
+                <select onchange="state.responseCol = this.value; renderSetup();">
+                  ${state.promptsHeaders.map(h => `<option value="${escapeAttr(h)}" ${h===state.responseCol?'selected':''}>${escapeHtml(h)}</option>`).join('')}
+                </select>
+              </label>
+            </div>
+          ` : ''}
+          ${state.inputMode === 'docx' ? renderDocxMappingPanel() : ''}
+        </div>
+
+        <div class="upload-card ${state.taxonomyItems.length ? 'has-file' : ''}" id="tax-card">
+          <div class="step">Step 02</div>
+          <h3>Taxonomies</h3>
+          <p class="hint">An Excel file of categories — one sheet per section for Structured Analysis, or a single sheet for flat taxonomies.</p>
+          <label class="file-input">
+            <input type="file" accept=".xlsx,.xls,.csv" onchange="handleTaxonomyFile(event)" />
+            <div class="file-label">
+              ${state.taxonomyFile ? `
+                <div class="name">${state.taxonomyFile}</div>
+                <div class="stats">
+                  ${state.taxonomyItems.length} toggleable item${state.taxonomyItems.length===1?'':'s'}
+                  ${state.isMultiSheet ? ` across ${state.taxonomySectionNames.length} sections` : ''}
+                  ${state.caseIdField ? ` · "${escapeHtml(state.caseIdField)}" as case identifier` : ''}
+                </div>
+              ` : `
+                <div class="name">Choose file…</div>
+                <div class="stats">.xlsx, .xls, or .csv (multi-sheet workbooks become sections)</div>
+              `}
+            </div>
+            <div class="check">✓</div>
+          </label>
+          ${state.taxonomyFile && state.isMultiSheet ? `
+            <div class="col-mapping" style="display:block;">
+              <div class="tax-preview">
+                <div class="tax-preview-label">Sections detected</div>
+                <div class="section-summary-list">
+                  ${state.taxonomySectionNames.map(name => {
+                    const count = state.taxonomySectionMap.filter(s => s === name).length;
+                    return `<div class="section-summary-item">
+                      <span class="section-summary-name">${escapeHtml(name)}</span>
+                      <span class="section-summary-count">${count} items</span>
+                    </div>`;
+                  }).join('')}
+                </div>
+                ${state.caseIdField ? `
+                  <div style="margin-top:10px; font-size:12px; color:var(--ink-soft);">
+                    <span style="color:var(--accent); font-weight:500;">⚑ "${escapeHtml(state.caseIdField)}"</span>
+                    detected as the case identifier (shared across all sections).
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+          ${state.taxonomyFile && !state.isMultiSheet ? `
+            <div class="col-mapping" style="display:block;">
+              <label>
+                <span>Column</span>
+                <select onchange="changeTaxonomyColumn(this.value)">
+                  ${state.taxonomyHeaders.map((h, i) => `
+                    <option value="${i}" ${i===state.taxonomyColIdx?'selected':''}>${escapeHtml(h)}</option>
+                  `).join('')}
+                </select>
+              </label>
+              <label style="font-size:12px; color:var(--ink-soft);">
+                <span></span>
+                <span style="display:flex; align-items:center; gap:8px; flex:1;">
+                  <input type="checkbox" ${state.taxonomySkipFirst?'checked':''}
+                    onchange="toggleTaxonomyHeader(this.checked)" />
+                  First row is a header (skip it)
+                </span>
+              </label>
+              ${state.taxonomyRawItems.length ? `
+                <label style="font-size:12px; color:var(--ink-soft);">
+                  <span></span>
+                  <span style="display:flex; align-items:center; gap:8px; flex:1;">
+                    <input type="checkbox" ${state.caseIdField?'checked':''}
+                      onchange="toggleCaseIdField(this.checked)" />
+                    Treat first item ("${escapeHtml(state.taxonomyRawItems[0] || '')}") as a case identifier (no Yes/No toggle)
+                  </span>
+                </label>
+              ` : ''}
+              <div class="tax-preview">
+                <div class="tax-preview-label">
+                  Preview · ${state.caseIdField ? 'case identifier + ' : ''}first ${Math.min(state.taxonomyItems.length, 6)} toggleable items
+                </div>
+                <ol class="tax-preview-list">
+                  ${state.caseIdField ? `<li class="case-id-preview">⚑ ${escapeHtml(state.caseIdField)} <span class="case-id-tag">case identifier</span></li>` : ''}
+                  ${state.taxonomyItems.slice(0, 6).map(it => `<li>${escapeHtml(it)}</li>`).join('')}
+                  ${state.taxonomyItems.length > 6 ? `<li class="more">+ ${state.taxonomyItems.length - 6} more</li>` : ''}
+                  ${state.taxonomyItems.length === 0 ? '<li class="more">No items found in this column.</li>' : ''}
+                </ol>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+
+      <div id="setup-error"></div>
+
+      <div class="setup-actions">
+        <button class="btn accent" onclick="startAnnotating()"
+          ${canStartAnnotating() ? '' : 'disabled'}>
+          Start annotating →
+        </button>
+        <span style="color:var(--ink-muted); font-size: 13px;">
+          Use <span class="kbd">←</span> <span class="kbd">→</span> to navigate · autosaves continuously
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- File handling ---------- */
+/**
+ * Dispatcher for the conversations upload — accepts either a single Excel/CSV
+ * (existing OraChat path) or one or more .docx files (Structured Analysis path).
+ * Mode is detected from the file extension.
+ */
+async function handleConversationsFiles(event) {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+  const isDocx = (f) => /\.docx$/i.test(f.name);
+  const allDocx = files.every(isDocx);
+  const allExcel = files.every(f => /\.(xlsx|xls|csv)$/i.test(f.name));
+  if (allDocx) {
+    state.inputMode = 'docx';
+    // Clear any prior excel state so the two modes don't blend
+    state.promptsFile = null;
+    state.promptsRows = [];
+    state.promptsHeaders = [];
+    state.promptCol = null;
+    state.responseCol = null;
+    await handleDocxFiles(files);
+  } else if (allExcel && files.length === 1) {
+    // Legacy support: a single Excel uploaded here is still accepted, even
+    // though the UI now only advertises .docx. This keeps older test fixtures
+    // and any one-off conversation-style Excel workbooks working.
+    state.inputMode = 'excel';
+    state.sectionDocuments = {};
+    state.docxAssignments = {};
+    state.caseName = null;
+    await handleExcelPromptsFile(files[0]);
+  } else {
+    showSetupError('Please upload .docx files only — one for each section of the structured analysis.');
+  }
+}
+
+async function handleExcelPromptsFile(file) {
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data);
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    if (!rows.length) throw new Error('Sheet is empty');
+    state.promptsFile = file.name;
+    state.promptsRows = rows;
+    state.promptsHeaders = Object.keys(rows[0]);
+    state.promptCol = detectColumn(state.promptsHeaders,
+      ['prompt','question','input','query','user','user_message','user message']) || state.promptsHeaders[0];
+    state.responseCol = detectColumn(state.promptsHeaders,
+      ['response','answer','output','reply','bot','assistant','bot_response','bot response','assistant_response']) ||
+      state.promptsHeaders[1] || state.promptsHeaders[0];
+    renderSetup();
+  } catch (e) {
+    showSetupError('Could not read conversations file: ' + e.message);
+  }
+}
+
+/**
+ * Convert each uploaded .docx to sanitized HTML via mammoth, then auto-match
+ * each file to a taxonomy section by keyword overlap in the filename. The user
+ * can reassign manually via the dropdown next to each file in the setup card.
+ */
+async function handleDocxFiles(files) {
+  try {
+    if (!window.mammoth) throw new Error('Document converter not loaded — please reload the page.');
+    const results = [];
+    for (const file of files) {
+      try {
+        const buf = await file.arrayBuffer();
+        const out = await mammoth.convertToHtml({ arrayBuffer: buf });
+        let html = out.value || '';
+        if (typeof DOMPurify !== 'undefined') html = DOMPurify.sanitize(html);
+        results.push({
+          filename: file.name,
+          html,
+          originalHtml: html,   // immutable baseline for diffing
+          warnings: (out.messages || []).map(m => m.message || String(m)),
+        });
+      } catch (e) {
+        results.push({ filename: file.name, html: '', originalHtml: '',
+                       warnings: ['Could not parse: ' + (e.message || e)] });
+      }
+    }
+    state.pendingDocxFiles = results;
+    // Extract a common case-name prefix from the filenames
+    state.caseName = extractCommonCaseName(results.map(r => r.filename));
+    // Auto-map filenames → section names using keyword overlap
+    autoAssignDocxToSections();
+    renderSetup();
+  } catch (e) {
+    showSetupError('Could not read documents: ' + e.message);
+  }
+}
+
+/** Strip the file extension and any leading underscores/dashes/spaces. */
+function _normalizeForMatch(s) {
+  return String(s || '')
+    .replace(/\.docx$/i, '')
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+}
+
+/** Return the case name extracted from filenames. Tries (in order):
+ *  1) Longest common prefix shared by all files
+ *  2) Section-stripped: remove section-name keywords from each filename and
+ *     take the longest remaining stem
+ *  Returns null if neither produces something usable.
+ */
+function extractCommonCaseName(filenames) {
+  if (!filenames.length) return null;
+  const stripped = filenames.map(f => f.replace(/\.docx$/i, ''));
+
+  // 1) Longest common prefix
+  let prefix = stripped[0];
+  for (const s of stripped.slice(1)) {
+    let i = 0;
+    while (i < prefix.length && i < s.length && prefix[i] === s[i]) i++;
+    prefix = prefix.slice(0, i);
+    if (!prefix) break;
+  }
+  const cleanPrefix = prefix.replace(/[_\-\s]+$/g, '').replace(/[_\-]+/g, ' ').trim();
+  if (cleanPrefix.length >= 3) return cleanPrefix;
+
+  // 2) Section-strip fallback. Remove known section keywords and see what's left.
+  const sectionKeywords = [
+    'factual', 'background', 'procedural', 'posture', 'liability',
+    'settlement', 'damages', 'analysis', 'section', 'part',
+  ];
+  const stems = stripped.map(s => {
+    let cleaned = s.toLowerCase();
+    for (const kw of sectionKeywords) {
+      cleaned = cleaned.replace(new RegExp(`[_\\-\\s]*${kw}[_\\-\\s]*`, 'gi'), ' ');
+    }
+    return cleaned.replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  });
+  // Pick the longest non-empty stem (likeliest to contain a case-name like "Smith v. Jones")
+  const longestStem = stems.filter(s => s.length >= 3).sort((a, b) => b.length - a.length)[0];
+  if (longestStem) {
+    // Title-case it lightly: only capitalize first letter of each word
+    return longestStem.replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return null;
+}
+
+function setCaseName(value) {
+  state.caseName = value || null;
+  scheduleSave();
+}
+
+/** Decide which docx file belongs to which taxonomy section by keyword match. */
+function autoAssignDocxToSections() {
+  state.docxAssignments = {};
+  state.sectionDocuments = {};
+  const sections = state.taxonomySectionNames.length ? state.taxonomySectionNames : ['Document'];
+  // Build a set of section keywords from each section name
+  const sectionKeywords = sections.map(name => ({
+    name,
+    keywords: _normalizeForMatch(name).split(' ').filter(w => w.length >= 3),
+  }));
+  // For each file, score each section by keyword hits in the normalized filename
+  const used = new Set();
+  for (const file of state.pendingDocxFiles) {
+    const norm = _normalizeForMatch(file.filename);
+    let bestScore = 0, best = null;
+    for (const sec of sectionKeywords) {
+      if (used.has(sec.name)) continue;
+      let score = 0;
+      for (const kw of sec.keywords) if (norm.includes(kw)) score++;
+      if (score > bestScore) { bestScore = score; best = sec.name; }
+    }
+    if (best) {
+      used.add(best);
+      state.docxAssignments[best] = file.filename;
+      state.sectionDocuments[best] = file;
+    }
+  }
+  // Any unmatched files: assign to the first unused section so they're not lost
+  for (const file of state.pendingDocxFiles) {
+    if (Object.values(state.docxAssignments).includes(file.filename)) continue;
+    const next = sections.find(s => !used.has(s));
+    if (next) {
+      used.add(next);
+      state.docxAssignments[next] = file.filename;
+      state.sectionDocuments[next] = file;
+    }
+  }
+}
+
+/** User-driven reassignment via the dropdown. */
+function reassignDocx(sectionName, filename) {
+  if (!filename) {
+    delete state.docxAssignments[sectionName];
+    delete state.sectionDocuments[sectionName];
+  } else {
+    // Detach this filename from any other section
+    for (const [otherSec, fname] of Object.entries(state.docxAssignments)) {
+      if (fname === filename && otherSec !== sectionName) {
+        delete state.docxAssignments[otherSec];
+        delete state.sectionDocuments[otherSec];
+      }
+    }
+    const file = state.pendingDocxFiles.find(f => f.filename === filename);
+    if (file) {
+      state.docxAssignments[sectionName] = filename;
+      state.sectionDocuments[sectionName] = file;
+    }
+  }
+  renderSetup();
+}
+
+/** Setup-card panel for docx mode: show each file with its detected section. */
+function renderDocxMappingPanel() {
+  if (!state.pendingDocxFiles.length) return '';
+  const sections = state.taxonomySectionNames.length ? state.taxonomySectionNames : ['Document'];
+  const allFiles = state.pendingDocxFiles.map(f => f.filename);
+  const rows = sections.map(sec => {
+    const assigned = state.docxAssignments[sec] || '';
+    return `
+      <div class="docx-row">
+        <span class="docx-row-section">${escapeHtml(sec)}</span>
+        <select class="docx-row-select" onchange="reassignDocx('${escapeAttr(sec)}', this.value)">
+          <option value="">— not assigned —</option>
+          ${allFiles.map(f => `<option value="${escapeAttr(f)}" ${f===assigned?'selected':''}>${escapeHtml(f)}</option>`).join('')}
+        </select>
+        ${assigned ? `<span class="docx-row-status ok">✓</span>` : `<span class="docx-row-status missing">missing</span>`}
+      </div>
+    `;
+  }).join('');
+  const unmatched = allFiles.filter(f => !Object.values(state.docxAssignments).includes(f));
+  return `
+    <div class="col-mapping" style="display:block;">
+      <div class="tax-preview-label" style="margin-bottom:8px;">Document → Section mapping</div>
+      <div class="docx-mapping">${rows}</div>
+      ${unmatched.length ? `<div class="docx-warning">Not yet placed: ${unmatched.map(escapeHtml).join(', ')}</div>` : ''}
+      <div style="margin-top:12px;">
+        <label style="display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--ink-soft);">
+          <span style="text-transform:uppercase; letter-spacing:0.06em; font-family:'JetBrains Mono', monospace; font-size:10px;">Case name</span>
+          <input type="text" class="case-name-input" value="${escapeAttr(state.caseName || '')}"
+            placeholder="e.g. Bigfoot v. OraClaim"
+            oninput="setCaseName(this.value)" />
+        </label>
+      </div>
+    </div>
+  `;
+}
+
+async function handleTaxonomyFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data);
+    if (!wb.SheetNames.length) throw new Error('Workbook has no sheets');
+
+    state.taxonomyFile = file.name;
+
+    if (wb.SheetNames.length > 1) {
+      // ----- Multi-sheet: each sheet = one section -----
+      parseMultiSheetTaxonomy(wb);
+    } else {
+      // ----- Single-sheet: existing behavior (column picker etc.) -----
+      parseSingleSheetTaxonomy(wb);
+    }
+
+    renderSetup();
+  } catch (e) {
+    showSetupError('Could not read taxonomy file: ' + e.message);
+  }
+}
+
+/**
+ * Parse a multi-sheet workbook. Each sheet becomes a section. For each sheet we
+ * collect every non-empty cell value (which handles "NOTE" columns where extra
+ * items live in rows 2/3). The first item per sheet, if it matches the case-id
+ * pattern, becomes the global caseIdField (set once, from the first sheet).
+ */
+function parseMultiSheetTaxonomy(wb) {
+  const identifierPattern = /^(case\s*[-_]?\s*(id|no|num(ber)?|#)|case|id|ref(erence)?|sequence|index|row\s*(no|num(ber)?|#)?|#|sr\.?\s*no\.?)$/i;
+  // Words that are layout headers in multi-sheet workbooks, not real taxonomy items.
+  // Match exact (case-insensitive) so we don't accidentally drop real items.
+  const layoutHeaderWords = new Set([
+    'category', 'categories', 'note', 'notes', 'header', 'heading', 'headings',
+    'label', 'labels', 'type', 'types', 'class', 'classes', 'item', 'items',
+    'name', 'names', 'description', 'descriptions', 'taxonomy', 'taxonomies',
+  ]);
+  const isLayoutHeader = (s) => layoutHeaderWords.has(s.toLowerCase().trim());
+
+  const sectionNames = [];
+  const items = [];
+  const sectionMap = [];
+  let caseIdField = null;
+
+  for (const sheetName of wb.SheetNames) {
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false });
+    if (!rows.length) continue;
+
+    sectionNames.push(sheetName);
+
+    const sheetItems = [];
+    const seen = new Set();
+    const maxCols = Math.max(...rows.map(r => r.length));
+    for (let c = 0; c < maxCols; c++) {
+      for (let r = 0; r < rows.length; r++) {
+        const v = String(rows[r][c] ?? '').trim();
+        if (!v || seen.has(v)) continue;
+        // Skip layout-header artifacts like "Category" or "NOTE" that label
+        // columns/rows rather than describe a taxonomy item.
+        if (isLayoutHeader(v)) continue;
+        seen.add(v);
+        sheetItems.push(v);
+      }
+    }
+
+    // First item that matches the case-id pattern becomes the global case-id field
+    if (sheetItems.length && identifierPattern.test(sheetItems[0])) {
+      if (caseIdField === null) caseIdField = sheetItems[0];
+      sheetItems.shift();
+    }
+
+    sheetItems.forEach(it => {
+      items.push(it);
+      sectionMap.push(sheetName);
+    });
+  }
+
+  state.isMultiSheet = true;
+  state.taxonomySectionNames = sectionNames;
+  state.taxonomyItems = items;
+  state.taxonomyRawItems = items.slice();
+  state.taxonomySectionMap = sectionMap;
+  state.caseIdField = caseIdField;
+  state.caseIdAutoDetected = !!caseIdField;
+  state.activeSectionTab = sectionNames[0] || null;
+  state.taxonomyRawRows = [];
+  state.taxonomyHeaders = [];
+  state.taxonomyColIdx = 0;
+  state.taxonomySkipFirst = true;
+}
+
+/** Original single-sheet parser, factored out. */
+function parseSingleSheetTaxonomy(wb) {
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false });
+  if (!raw.length) throw new Error('Sheet is empty');
+
+  const maxCols = Math.max(...raw.map(r => r.length));
+  const rows = raw.map(r => {
+    const out = new Array(maxCols).fill('');
+    for (let i = 0; i < r.length; i++) out[i] = r[i] ?? '';
+    return out;
+  });
+
+  const colLetter = (n) => {
+    let s = ''; n += 1;
+    while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+    return s;
+  };
+  const firstRow = rows[0] || [];
+  const looksLikeHeader = firstRow.some(c => {
+    const s = String(c ?? '').trim();
+    return s && isNaN(Number(s));
+  });
+  const headers = [];
+  for (let c = 0; c < maxCols; c++) {
+    const v = String(firstRow[c] ?? '').trim();
+    if (looksLikeHeader && v) headers.push(v);
+    else headers.push('Column ' + colLetter(c));
+  }
+
+  const startRow = looksLikeHeader ? 1 : 0;
+  const taxonomyHeaderHints = /^(taxonomy|categor|label|name|item|class|tag|topic|type|criterion|criteria|dimension|attribute|aspect|metric)/i;
+  const scores = new Array(maxCols).fill(0);
+  for (let c = 0; c < maxCols; c++) {
+    let filled = 0, numeric = 0, textChars = 0, textCount = 0;
+    for (let r = startRow; r < rows.length; r++) {
+      const raw2 = rows[r][c];
+      const s = String(raw2 ?? '').trim();
+      if (!s) continue;
+      filled++;
+      if (!isNaN(Number(s)) && /^-?\d+(\.\d+)?$/.test(s)) numeric++;
+      else { textCount++; textChars += s.length; }
+    }
+    if (filled === 0) { scores[c] = 0; continue; }
+    const textRatio = textCount / filled;
+    const avgLen = textCount ? textChars / textCount : 0;
+    const lenBonus = (avgLen >= 3 && avgLen <= 60) ? 1 : 0.3;
+    const headerBonus = taxonomyHeaderHints.test(headers[c]) ? 1.5 : 1.0;
+    scores[c] = filled * textRatio * lenBonus * headerBonus;
+  }
+  let bestCol = 0;
+  for (let c = 1; c < maxCols; c++) if (scores[c] > scores[bestCol]) bestCol = c;
+  if (scores[bestCol] === 0) {
+    const fallbackScores = new Array(maxCols).fill(0);
+    for (let c = 0; c < maxCols; c++) {
+      for (let r = startRow; r < rows.length; r++) {
+        if (String(rows[r][c] ?? '').trim()) fallbackScores[c]++;
+      }
+    }
+    bestCol = 0;
+    for (let c = 1; c < maxCols; c++) if (fallbackScores[c] > fallbackScores[bestCol]) bestCol = c;
+  }
+
+  let useHorizontal = false;
+  if (scores[bestCol] === 0) {
+    const textCellsInFirstRow = firstRow.filter(c => String(c ?? '').trim()).length;
+    if (textCellsInFirstRow >= 2) useHorizontal = true;
+  }
+
+  state.isMultiSheet = false;
+  state.taxonomySectionNames = [];
+  state.taxonomySectionMap = [];
+  state.activeSectionTab = null;
+  state.taxonomyRawRows = rows;
+  state.taxonomyHeaders = headers;
+  state.taxonomyColIdx = bestCol;
+  state.taxonomySkipFirst = looksLikeHeader && !useHorizontal;
+  state.caseIdField = null;
+  state.caseIdAutoDetected = false;
+
+  if (useHorizontal) {
+    state.taxonomyRawItems = firstRow.map(c => String(c ?? '').trim()).filter(Boolean);
+    state.taxonomyHeaders = ['(row 1 — horizontal layout)'];
+    state.taxonomyColIdx = 0;
+    state.taxonomyRawRows = [firstRow];
+    state.taxonomySkipFirst = false;
+    applyCaseIdField();
+  } else {
+    rebuildTaxonomyItems();
+  }
+}
+
+function rebuildTaxonomyItems() {
+  const start = state.taxonomySkipFirst ? 1 : 0;
+  const col = state.taxonomyColIdx;
+  state.taxonomyRawItems = state.taxonomyRawRows
+    .slice(start)
+    .map(r => String(r[col] ?? '').trim())
+    .filter(Boolean);
+  applyCaseIdField();
+}
+
+/**
+ * If the first taxonomy item looks like a row identifier (Case ID, ID, Ref, etc.),
+ * split it off so it's not rendered as a Yes/No toggle. The user can override this
+ * via the checkbox in the upload card.
+ */
+function applyCaseIdField() {
+  const identifierPattern = /^(case\s*[-_]?\s*(id|no|num(ber)?|#)|case|id|ref(erence)?|sequence|index|row\s*(no|num(ber)?|#)?|#|sr\.?\s*no\.?)$/i;
+  if (state.taxonomyRawItems.length && identifierPattern.test(state.taxonomyRawItems[0])) {
+    // Only auto-set if the user hasn't manually overridden
+    if (state.caseIdAutoDetected || state.caseIdField === null) {
+      state.caseIdField = state.taxonomyRawItems[0];
+      state.caseIdAutoDetected = true;
+    }
+  } else {
+    if (state.caseIdAutoDetected) {
+      state.caseIdField = null;
+      state.caseIdAutoDetected = false;
+    }
+  }
+  if (state.caseIdField && state.taxonomyRawItems[0] === state.caseIdField) {
+    state.taxonomyItems = state.taxonomyRawItems.slice(1);
+  } else {
+    state.taxonomyItems = state.taxonomyRawItems.slice();
+  }
+}
+
+function toggleCaseIdField(useAsId) {
+  if (useAsId) {
+    if (state.taxonomyRawItems.length) state.caseIdField = state.taxonomyRawItems[0];
+    state.caseIdAutoDetected = false;  // explicit user choice
+  } else {
+    state.caseIdField = null;
+    state.caseIdAutoDetected = false;
+  }
+  if (state.caseIdField) {
+    state.taxonomyItems = state.taxonomyRawItems.slice(1);
+  } else {
+    state.taxonomyItems = state.taxonomyRawItems.slice();
+  }
+  renderSetup();
+}
+
+function changeTaxonomyColumn(idx) {
+  state.taxonomyColIdx = parseInt(idx, 10);
+  rebuildTaxonomyItems();
+  renderSetup();
+}
+
+function toggleTaxonomyHeader(skip) {
+  state.taxonomySkipFirst = skip;
+  rebuildTaxonomyItems();
+  renderSetup();
+}
+
+function detectColumn(headers, candidates) {
+  const lower = headers.map(h => h.toLowerCase().trim());
+  for (const c of candidates) {
+    const idx = lower.indexOf(c);
+    if (idx >= 0) return headers[idx];
+  }
+  for (const c of candidates) {
+    const idx = lower.findIndex(h => h.includes(c));
+    if (idx >= 0) return headers[idx];
+  }
+  return null;
+}
+
+function showSetupError(msg) {
+  const el = document.getElementById('setup-error');
+  if (el) el.innerHTML = `<div class="error-banner">${escapeHtml(msg)}</div>`;
+}
+
+/* ---------- Start / resume ---------- */
+
+/**
+ * Some upstream pipelines store prompts as JSON-encoded strings and paste them
+ * into Excel without decoding — so a cell that should read "## Heading\n\nBody"
+ * arrives as the literal characters `## Heading\n\nBody` with backslash-n
+ * sequences instead of real newlines. Markdown headings, lists, and code blocks
+ * only render when the special marker is at the start of a real line, so we
+ * normalize the common JSON escape sequences here. If the text was already
+ * stored with real newlines, this is a no-op.
+ */
+function unescapeText(s) {
+  if (!s || typeof s !== 'string') return s;
+  // Only act if the text looks JSON-escaped (contains literal \n, \r, or \t).
+  // This avoids touching content that already has real newlines.
+  if (!/\\[nrt"\\]/.test(s)) return s;
+  return s
+    .replace(/\\r\\n/g, '\n')   // Windows-style first
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+}
+
+/**
+ * Strip residual leading-whitespace padding from prompts that were originally
+ * written as Python f-strings or docstrings. Those typically have a title at
+ * column 0 and a body indented by 4 spaces — which markdown then treats as a
+ * code block. We detect when the majority of non-empty lines share leading
+ * whitespace and remove it. Real code blocks (fenced with ``` or natural list
+ * indentation) are unaffected because they don't trigger the "majority indented"
+ * pattern.
+ */
+function dedentForMarkdown(s) {
+  if (!s || typeof s !== 'string') return s;
+  const lines = s.split('\n');
+  // Count non-empty lines and their leading-space widths
+  let nonEmpty = 0;
+  let minAllIndent = Infinity;
+  const indentedWidths = [];
+  for (const line of lines) {
+    if (line.trim() === '') continue;
+    nonEmpty++;
+    const m = line.match(/^( +)/);
+    const w = m ? m[1].length : 0;
+    if (w < minAllIndent) minAllIndent = w;
+    if (w > 0) indentedWidths.push(w);
+  }
+  if (nonEmpty === 0) return s;
+  if (minAllIndent === Infinity) minAllIndent = 0;
+
+  // Case A: every non-empty line is indented by the same minimum — standard dedent.
+  if (minAllIndent > 0) {
+    return lines.map(l => l.length >= minAllIndent ? l.slice(minAllIndent) : l).join('\n');
+  }
+  // Case B: some lines start at column 0 (often a title), but the majority of
+  // non-empty lines are indented uniformly — strip the common indent off those.
+  if (indentedWidths.length / nonEmpty >= 0.5) {
+    const dedentBy = Math.min(...indentedWidths);
+    if (dedentBy >= 2) {
+      const prefix = ' '.repeat(dedentBy);
+      return lines.map(l => l.startsWith(prefix) ? l.slice(dedentBy) : l).join('\n');
+    }
+  }
+  return s;
+}
+
+/** Gating: are we ready to begin annotating? */
+function canStartAnnotating() {
+  if (!state.taxonomyItems.length) return false;
+  if (state.inputMode === 'docx') {
+    // Need at least one section mapped to a document
+    return Object.keys(state.sectionDocuments).length > 0;
+  }
+  return state.promptsRows.length && state.promptCol && state.responseCol;
+}
+
+function startAnnotating() {
+  if (state.inputMode === 'docx') {
+    // Single-case mode: one conversation entry, prompt/response unused.
+    // Rendering pulls from state.sectionDocuments[activeSectionTab] instead.
+    state.conversations = [{
+      index: 0,
+      prompt: '',
+      response: '',
+      isDocxCase: true,
+    }];
+  } else {
+    state.conversations = state.promptsRows.map((row, i) => ({
+      index: i,
+      prompt: dedentForMarkdown(unescapeText((row[state.promptCol] ?? '').toString())),
+      response: dedentForMarkdown(unescapeText((row[state.responseCol] ?? '').toString())),
+      original: row,
+    }));
+  }
+  state.currentIndex = 0;
+  state.view = 'annotate';
+  state.conversations.forEach((c, i) => {
+    if (!state.annotations[i]) state.annotations[i] = {};
+  });
+  saveSession(false);
+  renderAnnotate();
+}
+
+async function resumeSession() {
+  const s = await loadSession();
+  if (!s) return;
+  state.promptsHeaders = s.promptsHeaders || [];
+  state.promptCol = s.promptCol;
+  state.responseCol = s.responseCol;
+  state.taxonomyItems = s.taxonomyItems || [];
+  state.taxonomySectionMap = s.taxonomySectionMap || [];
+  state.taxonomySectionNames = s.taxonomySectionNames || [];
+  state.isMultiSheet = !!s.isMultiSheet;
+  state.activeSectionTab = s.activeSectionTab || (state.taxonomySectionNames[0] || null);
+  state.caseIdField = s.caseIdField || null;
+  state.inputMode = s.inputMode || 'excel';
+  state.caseName = s.caseName || null;
+  state.sectionDocuments = s.sectionDocuments || {};
+  state.sectionEdits = s.sectionEdits || {};
+  state.conversations = s.conversations || [];
+  state.annotations = s.annotations || {};
+  state.conversationNotes = s.conversationNotes || {};
+  state.currentIndex = s.currentIndex || 0;
+  state.view = 'annotate';
+  renderAnnotate();
+}
+
+async function discardSession() {
+  await clearSession();
+  toast('Saved session cleared');
+  renderSetup(null);
+}
+
+async function confirmReset() {
+  if (!confirm('Reset everything? Your annotations will be lost.')) return;
+  await clearSession();
+  Object.assign(state, {
+    view: 'setup',
+    promptsFile: null, promptsRows: [], promptsHeaders: [],
+    promptCol: null, responseCol: null,
+    taxonomyFile: null, taxonomyItems: [], taxonomyRawItems: [],
+    taxonomySectionMap: [], taxonomySectionNames: [],
+    isMultiSheet: false, activeSectionTab: null,
+    caseIdField: null, caseIdAutoDetected: false,
+    conversations: [], annotations: {}, conversationNotes: {},
+    currentIndex: 0, filter: 'all',
+    inputMode: 'excel', caseName: null,
+    sectionDocuments: {}, docxAssignments: {}, pendingDocxFiles: [],
+    editingSection: null, sectionEdits: {}, showHistory: false, selectedHistoryTs: null,
+  });
+  renderSetup(null);
+}
+
+/* ---------- Render: Annotate ---------- */
+/* ---------- Render: Annotate ---------- */
+
+/** Build the inside of the conv-body panel.
+ * - Excel mode: shows prompt + response + overall notes.
+ * - Docx mode: shows the document mapped to the active section + overall notes.
+ *   In docx mode the section is editable: a pencil icon flips it into a contenteditable,
+ *   edits are debounced-snapshotted, and a history panel can be toggled. */
+function renderConvBody(conv, isDocxMode) {
+  let blocks = '';
+  if (isDocxMode) {
+    const sec = state.activeSectionTab;
+    const doc = state.sectionDocuments[sec];
+    const editState = state.sectionEdits[sec] || { currentHtml: doc?.html || '', history: [] };
+    const isEditing = state.editingSection === sec;
+    const hasEdits = doc && editState.currentHtml !== doc.originalHtml;
+    const historyCount = editState.history.length;
+    const previewingHistory = state.showHistory && state.selectedHistoryTs !== null;
+    let displayHtml = editState.currentHtml || doc?.html || '';
+    if (previewingHistory) {
+      if (state.selectedHistoryTs === 0) {
+        // Special: ts=0 means show the immutable original baseline
+        displayHtml = doc?.originalHtml || '';
+      } else {
+        const snap = editState.history.find(h => h.ts === state.selectedHistoryTs);
+        if (snap) displayHtml = snap.html;
+      }
+    }
+    blocks = `
+      <div class="conv-block">
+        <div class="conv-label response doc-toolbar">
+          <span class="doc-label-text">
+            ${escapeHtml(sec || 'Document')}
+            ${doc ? `<span class="docx-filename-tag">${escapeHtml(doc.filename)}</span>` : ''}
+            ${hasEdits ? '<span class="edit-tag">edited</span>' : ''}
+          </span>
+          <div class="doc-toolbar-actions">
+            ${historyCount > 0 ? `
+              <button class="doc-tool-btn ${state.showHistory ? 'active' : ''}" onclick="toggleHistory()" title="Show version history">
+                History · <span class="history-count">${historyCount}</span>
+              </button>
+            ` : ''}
+            ${doc ? (isEditing ? `
+              <button class="doc-tool-btn primary" onclick="exitEditMode()" title="Finish editing">Done</button>
+            ` : `
+              <button class="doc-tool-btn" onclick="enterEditMode()" title="Edit this document">✎ Edit</button>
+            `) : ''}
+          </div>
+        </div>
+        ${doc ? (isEditing ? `
+          <div class="conv-text editor"
+               contenteditable="true"
+               oninput="onDocumentInput(this)"
+               onblur="onDocumentBlur()">${displayHtml}</div>
+          <div class="editor-hint">Click outside or press <span class="kbd">Done</span> to finish. All edits are saved automatically and snapshotted as history versions.</div>
+        ` : `
+          <div class="conv-text ${displayHtml ? '' : 'empty'} ${previewingHistory ? 'previewing-history' : ''}">${displayHtml || '(no document mapped to this section — go back and assign one)'}</div>
+          ${previewingHistory ? `
+            <div class="history-preview-banner">
+              Previewing snapshot from ${formatTime(new Date(state.selectedHistoryTs).toISOString())}.
+              <button class="link-btn" onclick="restoreSnapshot(${state.selectedHistoryTs})">Restore this version</button>
+              <button class="link-btn" onclick="exitHistoryPreview()">Back to current</button>
+            </div>
+          ` : ''}
+        `) : `
+          <div class="conv-text empty">(no document mapped to this section — go back and assign one)</div>
+        `}
+      </div>
+      ${state.showHistory && doc ? renderHistoryPanel(sec, editState) : ''}
+    `;
+  } else {
+    blocks = `
+      <div class="conv-block">
+        <div class="conv-label prompt">Prompt</div>
+        <div class="conv-text ${conv.prompt.trim() ? '' : 'empty'}">${conv.prompt.trim() ? renderMarkdown(conv.prompt) : '(empty)'}</div>
+      </div>
+      <div class="conv-block">
+        <div class="conv-label response">Response</div>
+        <div class="conv-text ${conv.response.trim() ? '' : 'empty'}">${conv.response.trim() ? renderMarkdown(conv.response) : '(empty)'}</div>
+      </div>
+    `;
+  }
+  return blocks + `
+    <div class="conv-block notes-block">
+      <div class="conv-label">Overall notes</div>
+      <textarea class="conv-notes-input"
+        placeholder="General notes about this case — things that span multiple categories, overall quality, edge cases, anything worth flagging…"
+        oninput="setConversationNote(this.value)">${escapeHtml(state.conversationNotes[state.currentIndex] || '')}</textarea>
+    </div>
+  `;
+}
+
+/** Renders the history side-panel for a section. */
+function renderHistoryPanel(section, editState) {
+  const doc = state.sectionDocuments[section];
+  const items = editState.history.slice().reverse();   // newest first
+  return `
+    <div class="history-panel">
+      <div class="history-panel-header">
+        Version history
+        <button class="link-btn" onclick="toggleHistory()" style="margin-left:auto;">Close</button>
+      </div>
+      <div class="history-list">
+        <div class="history-item ${state.selectedHistoryTs === null && !state.showHistory ? '' : (state.selectedHistoryTs === null ? 'active' : '')}"
+             onclick="exitHistoryPreview()">
+          <div class="history-item-title">Current version</div>
+          <div class="history-item-meta">${items.length === 0 ? 'No edits yet' : 'Latest edit'}</div>
+        </div>
+        ${items.map(s => `
+          <div class="history-item ${state.selectedHistoryTs === s.ts ? 'active' : ''}"
+               onclick="previewSnapshot(${s.ts})">
+            <div class="history-item-title">${escapeHtml(s.summary || 'Edit')}</div>
+            <div class="history-item-meta">${formatTime(new Date(s.ts).toISOString())}</div>
+          </div>
+        `).join('')}
+        <div class="history-item ${state.selectedHistoryTs === 0 ? 'active' : ''}"
+             onclick="previewSnapshot(0)">
+          <div class="history-item-title">Original</div>
+          <div class="history-item-meta">As uploaded · ${escapeHtml(doc.filename || '')}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAnnotate() {
+  document.getElementById('topbar').style.display = 'block';
+  updateProgress();
+
+  const root = document.getElementById('app');
+  const conv = state.conversations[state.currentIndex];
+  if (!conv) {
+    root.innerHTML = '<div class="container">No conversation at this index.</div>';
+    return;
+  }
+
+  const isDocxMode = state.inputMode === 'docx';
+
+  root.innerHTML = `
+    <div class="container">
+      <div class="work-layout">
+        <div class="conv-panel">
+          <div class="conv-header">
+            <div class="conv-num">
+              ${isDocxMode ? `
+                <span class="case-badge-label">Case</span>
+                <span class="case-badge">${escapeHtml(state.caseName || 'Untitled')}</span>
+              ` : state.caseIdField ? `
+                <span class="case-badge-label">${escapeHtml(state.caseIdField)}</span>
+                <span class="case-badge">${pad(state.currentIndex + 1)}</span>
+                <em style="margin-left:8px;">${state.currentIndex + 1} / ${state.conversations.length}</em>
+              ` : `
+                <span>${pad(state.currentIndex + 1)}</span>
+                <em> / ${state.conversations.length}</em>
+              `}
+            </div>
+            ${isDocxMode ? `
+              <div class="conv-nav">
+                <button class="btn ghost small" onclick="confirmReset()" title="Load a different case">Load next case</button>
+              </div>
+            ` : `
+              <div class="conv-nav">
+                <button class="nav-btn" onclick="goTo(0)" ${state.currentIndex===0?'disabled':''} title="First">⇤</button>
+                <button class="nav-btn" onclick="goTo(state.currentIndex-1)" ${state.currentIndex===0?'disabled':''} title="Previous (←)">←</button>
+                <input class="conv-jump" type="number" min="1" max="${state.conversations.length}"
+                  value="${state.currentIndex+1}" onchange="goTo(parseInt(this.value)-1)" />
+                <button class="nav-btn" onclick="goTo(state.currentIndex+1)" ${state.currentIndex===state.conversations.length-1?'disabled':''} title="Next (→)">→</button>
+                <button class="nav-btn" onclick="goTo(state.conversations.length-1)" ${state.currentIndex===state.conversations.length-1?'disabled':''} title="Last">⇥</button>
+              </div>
+            `}
+          </div>
+          <div class="conv-body" id="conv-body">
+            ${renderConvBody(conv, isDocxMode)}
+          </div>
+        </div>
+
+        <div class="tax-panel">
+          <div class="tax-summary" id="tax-summary"></div>
+          <div id="tax-list"></div>
+        </div>
+      </div>
+
+      <div class="bottom-actions">
+        <span class="save-indicator" id="save-indicator">
+          <span class="dot"></span><span class="label">All changes saved</span>
+        </span>
+        <span style="flex:1"></span>
+        <button class="btn ghost small" onclick="goTo(state.currentIndex-1)" ${state.currentIndex===0?'disabled':''}>← Previous</button>
+        <button class="btn small" onclick="goTo(state.currentIndex+1)" ${state.currentIndex===state.conversations.length-1?'disabled':''}>Next →</button>
+      </div>
+    </div>
+  `;
+
+  renderTaxonomy();
+}
+
+function renderTaxonomy() {
+  const conv = state.conversations[state.currentIndex];
+  const ann = state.annotations[state.currentIndex] || {};
+  const items = state.taxonomyItems;
+
+  // Per-section progress (only used when multi-sheet)
+  const sectionStats = {};
+  if (state.isMultiSheet) {
+    for (const name of state.taxonomySectionNames) {
+      sectionStats[name] = { yes: 0, no: 0, pending: 0, total: 0 };
+    }
+    items.forEach((_, i) => {
+      const sec = state.taxonomySectionMap[i];
+      if (!sec) return;
+      sectionStats[sec].total++;
+      const v = ann[i]?.value;
+      if (v === 'yes') sectionStats[sec].yes++;
+      else if (v === 'no') sectionStats[sec].no++;
+      else sectionStats[sec].pending++;
+    });
+  }
+
+  // Counts for the currently-visible items (respecting active section)
+  let yesCount = 0, noCount = 0, pendingCount = 0;
+  items.forEach((_, i) => {
+    if (state.activeSectionTab && state.taxonomySectionMap[i] !== state.activeSectionTab) return;
+    const v = ann[i]?.value;
+    if (v === 'yes') yesCount++;
+    else if (v === 'no') noCount++;
+    else pendingCount++;
+  });
+
+  document.getElementById('tax-summary').innerHTML = `
+    ${state.isMultiSheet ? `
+      <div class="section-tabs">
+        ${state.taxonomySectionNames.map(name => {
+          const s = sectionStats[name];
+          const isActive = state.activeSectionTab === name;
+          const done = s.yes + s.no;
+          const complete = done === s.total && s.total > 0;
+          return `<button class="section-tab ${isActive ? 'active' : ''} ${complete ? 'complete' : ''}"
+            onclick="setActiveSection('${escapeAttr(name)}')">
+            <span class="section-tab-name">${escapeHtml(name)}</span>
+            <span class="section-tab-count">${done}/${s.total}</span>
+          </button>`;
+        }).join('')}
+      </div>
+    ` : ''}
+    <div class="summary-row">
+      <span class="summary-chip yes"><span class="dot"></span><b>${yesCount}</b> yes</span>
+      <span class="summary-chip no"><span class="dot"></span><b>${noCount}</b> no</span>
+      <span class="summary-chip pending"><span class="dot"></span><b>${pendingCount}</b> pending</span>
+      <span class="spacer"></span>
+      <div class="filter-toggle">
+        <button class="${state.filter==='all'?'active':''}" onclick="setFilter('all')">All</button>
+        <button class="${state.filter==='pending'?'active':''}" onclick="setFilter('pending')">Pending</button>
+        <button class="${state.filter==='yes'?'active':''}" onclick="setFilter('yes')">Yes</button>
+        <button class="${state.filter==='no'?'active':''}" onclick="setFilter('no')">No</button>
+      </div>
+    </div>
+  `;
+
+  const list = document.getElementById('tax-list');
+  list.innerHTML = items.map((name, i) => {
+    const a = ann[i] || {};
+    const v = a.value || null;
+    const note = a.note || '';
+    const cls = v === 'yes' ? 'yes' : v === 'no' ? 'no' : 'unset';
+    const sectionOk = !state.activeSectionTab || state.taxonomySectionMap[i] === state.activeSectionTab;
+    const filterOk = !filterHides(state.filter, v);
+    const hidden = (!sectionOk || !filterOk) ? 'hidden' : '';
+    return `
+      <div class="tax-item ${cls} ${hidden}" data-tax="${i}">
+        <div class="tax-row">
+          <div class="tax-index">${pad(i+1, 3)}</div>
+          <div class="tax-name">${escapeHtml(name)}</div>
+          <div class="toggle-group">
+            <button class="toggle-btn yes-btn ${v==='yes'?'active':''}" onclick="setValue(${i},'yes')">Yes</button>
+            <button class="toggle-btn no-btn ${v==='no'?'active':''}" onclick="setValue(${i},'no')">No</button>
+          </div>
+        </div>
+        <div class="note-wrap">
+          <textarea class="note-input" placeholder="Why did you choose this? (optional)"
+            oninput="setNote(${i}, this.value)"
+            rows="1">${escapeHtml(note)}</textarea>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.note-input').forEach(autoSize);
+}
+
+function setActiveSection(name) {
+  // Exit any in-progress edit on the section we're leaving
+  if (state.editingSection && state.editingSection !== name) {
+    flushSnapshot(state.editingSection, 'Edit session');
+    state.editingSection = null;
+  }
+  state.showHistory = false;
+  state.selectedHistoryTs = null;
+  state.activeSectionTab = name;
+  renderTaxonomy();
+  // In docx mode the conv body shows the section's document — refresh it too
+  if (state.inputMode === 'docx') {
+    const conv = state.conversations[state.currentIndex];
+    const body = document.getElementById('conv-body');
+    if (body && conv) body.innerHTML = renderConvBody(conv, true);
+    const panel = document.querySelector('.conv-panel .conv-body');
+    if (panel) panel.scrollTop = 0;
+  }
+  scheduleSave();
+}
+
+function autoSize(ta) {
+  const adjust = () => {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 240) + 'px';
+  };
+  ta.addEventListener('input', adjust);
+  // initial
+  requestAnimationFrame(adjust);
+}
+
+function filterHides(filter, v) {
+  if (filter === 'all') return false;
+  if (filter === 'pending') return v === 'yes' || v === 'no';
+  return v !== filter;
+}
+
+function setFilter(f) {
+  state.filter = f;
+  renderTaxonomy();
+}
+
+/* ---------- Annotation ops ---------- */
+function setValue(taxIdx, value) {
+  const ci = state.currentIndex;
+  if (!state.annotations[ci]) state.annotations[ci] = {};
+  if (!state.annotations[ci][taxIdx]) state.annotations[ci][taxIdx] = { value: null, note: '' };
+  // Toggle off if clicking the same value
+  if (state.annotations[ci][taxIdx].value === value) {
+    state.annotations[ci][taxIdx].value = null;
+  } else {
+    state.annotations[ci][taxIdx].value = value;
+  }
+  scheduleSave();
+  renderTaxonomy();
+  updateProgress();
+}
+
+function setNote(taxIdx, value) {
+  const ci = state.currentIndex;
+  if (!state.annotations[ci]) state.annotations[ci] = {};
+  if (!state.annotations[ci][taxIdx]) state.annotations[ci][taxIdx] = { value: null, note: '' };
+  state.annotations[ci][taxIdx].note = value;
+  scheduleSave();
+}
+
+function goTo(idx) {
+  if (idx < 0 || idx >= state.conversations.length) return;
+  state.currentIndex = idx;
+  scheduleSave();
+  renderAnnotate();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function updateProgress() {
+  const total = state.conversations.length;
+  const done = Object.keys(state.annotations).filter(i => {
+    const ann = state.annotations[i];
+    return state.taxonomyItems.every((_, t) => ann[t]?.value === 'yes' || ann[t]?.value === 'no');
+  }).length;
+  document.getElementById('prog-done').textContent = done;
+  document.getElementById('prog-total').textContent = total;
+  document.getElementById('prog-fill').style.width = total ? (done/total*100) + '%' : '0%';
+  // Show the document-export button only in docx mode
+  const docxBtn = document.getElementById('docx-export-btn');
+  if (docxBtn) docxBtn.style.display = (state.inputMode === 'docx') ? 'inline-flex' : 'none';
+}
+
+function countAnnotated(annotations) {
+  if (!annotations) return 0;
+  return Object.values(annotations).filter(a =>
+    Object.values(a || {}).some(v => v.value === 'yes' || v.value === 'no')
+  ).length;
+}
+
+/* ---------- Export ---------- */
+function exportData() {
+  if (!state.conversations.length) { toast('Nothing to export yet'); return; }
+  const tax = state.taxonomyItems;
+
+  // Build column name for each taxonomy item — prefixed with section if multi-sheet
+  const colNameFor = (i) => {
+    const sec = state.taxonomySectionMap[i];
+    return sec ? `${sec} :: ${tax[i]}` : tax[i];
+  };
+
+  const fmtValue = (v) => v === 'yes' ? 'Yes' : v === 'no' ? 'No' : '';
+
+  // ---- Sheet 1: Full annotations ----
+  const isDocxMode = state.inputMode === 'docx';
+  const rows = state.conversations.map((c, ci) => {
+    const ann = state.annotations[ci] || {};
+    const row = { '#': ci + 1 };
+    if (isDocxMode) {
+      row['Case'] = state.caseName || '';
+      // Include the plain-text version of each section's document
+      state.taxonomySectionNames.forEach(sec => {
+        const doc = state.sectionDocuments[sec];
+        row[sec] = doc ? htmlToPlainText(doc.html) : '';
+      });
+    } else {
+      if (state.caseIdField) row[state.caseIdField] = ci + 1;
+      row['Prompt'] = c.prompt;
+      row['Response'] = c.response;
+    }
+    row['Overall notes'] = state.conversationNotes[ci] || '';
+    tax.forEach((name, ti) => {
+      const a = ann[ti] || {};
+      row[colNameFor(ti)] = fmtValue(a.value);
+      row[colNameFor(ti) + ' — note'] = a.note || '';
+    });
+    return row;
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const headers = Object.keys(rows[0]);
+  ws['!cols'] = headers.map(k => {
+    if (k === 'Prompt' || k === 'Response') return { wch: 35 };
+    if (isDocxMode && state.taxonomySectionNames.includes(k)) return { wch: 50 };
+    if (k === 'Case') return { wch: 30 };
+    if (k === 'Overall notes') return { wch: 30 };
+    if (k === '#') return { wch: 5 };
+    if (state.caseIdField && k === state.caseIdField) return { wch: 10 };
+    if (k.endsWith('— note')) return { wch: 28 };
+    return { wch: 12 };
+  });
+  const frozenCols = isDocxMode ? 2 : (state.caseIdField ? 2 : 1);
+  ws['!freeze'] = { xSplit: frozenCols, ySplit: 1 };
+  ws['!views'] = [{ state: 'frozen', xSplit: frozenCols, ySplit: 1 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Full annotations');
+
+  // ---- Sheet 2: Toggles only ----
+  const toggleRows = state.conversations.map((c, ci) => {
+    const ann = state.annotations[ci] || {};
+    const row = { '#': ci + 1 };
+    if (isDocxMode) row['Case'] = state.caseName || '';
+    else if (state.caseIdField) row[state.caseIdField] = ci + 1;
+    tax.forEach((name, ti) => {
+      row[colNameFor(ti)] = fmtValue(ann[ti]?.value);
+    });
+    return row;
+  });
+  const wsT = XLSX.utils.json_to_sheet(toggleRows);
+  const tHeaders = Object.keys(toggleRows[0]);
+  wsT['!cols'] = tHeaders.map(k => {
+    if (k === '#') return { wch: 5 };
+    if (k === 'Case') return { wch: 30 };
+    if (state.caseIdField && k === state.caseIdField) return { wch: 10 };
+    return { wch: 8 };
+  });
+  wsT['!views'] = [{ state: 'frozen', xSplit: frozenCols, ySplit: 1 }];
+  XLSX.utils.book_append_sheet(wb, wsT, 'Toggles');
+
+  // ---- Sheet 3: Per-section toggle sheets (only when multi-sheet) ----
+  if (state.isMultiSheet) {
+    for (const sectionName of state.taxonomySectionNames) {
+      const sectionIdxs = [];
+      tax.forEach((_, ti) => { if (state.taxonomySectionMap[ti] === sectionName) sectionIdxs.push(ti); });
+      const secRows = state.conversations.map((c, ci) => {
+        const ann = state.annotations[ci] || {};
+        const row = { '#': ci + 1 };
+        if (isDocxMode) row['Case'] = state.caseName || '';
+        else if (state.caseIdField) row[state.caseIdField] = ci + 1;
+        sectionIdxs.forEach(ti => {
+          row[tax[ti]] = fmtValue(ann[ti]?.value);
+          row[tax[ti] + ' — note'] = ann[ti]?.note || '';
+        });
+        return row;
+      });
+      if (!secRows.length) continue;
+      const wsS = XLSX.utils.json_to_sheet(secRows);
+      const sHeaders = Object.keys(secRows[0]);
+      wsS['!cols'] = sHeaders.map(k => {
+        if (k === '#') return { wch: 5 };
+        if (k === 'Case') return { wch: 30 };
+        if (state.caseIdField && k === state.caseIdField) return { wch: 10 };
+        if (k.endsWith('— note')) return { wch: 28 };
+        return { wch: 10 };
+      });
+      wsS['!views'] = [{ state: 'frozen', xSplit: frozenCols, ySplit: 1 }];
+      // Sheet name max 31 chars in Excel
+      const safeName = sectionName.length > 31 ? sectionName.slice(0, 31) : sectionName;
+      XLSX.utils.book_append_sheet(wb, wsS, safeName);
+    }
+  }
+
+  // ---- Summary sheet ----
+  const summary = tax.map((name, ti) => {
+    let yes = 0, no = 0, blank = 0;
+    state.conversations.forEach((_, ci) => {
+      const v = state.annotations[ci]?.[ti]?.value;
+      if (v === 'yes') yes++;
+      else if (v === 'no') no++;
+      else blank++;
+    });
+    const row = {};
+    if (state.isMultiSheet) row['Section'] = state.taxonomySectionMap[ti] || '';
+    row['Taxonomy item'] = name;
+    row['Yes'] = yes;
+    row['No'] = no;
+    row['Blank'] = blank;
+    return row;
+  });
+  const ws2 = XLSX.utils.json_to_sheet(summary);
+  ws2['!cols'] = state.isMultiSheet
+    ? [{wch: 22}, {wch: 60}, {wch: 8}, {wch: 8}, {wch: 8}]
+    : [{wch: 60}, {wch: 8}, {wch: 8}, {wch: 8}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+  const filename = 'annotations-' + new Date().toISOString().slice(0,10) + '.xlsx';
+  XLSX.writeFile(wb, filename);
+  toast('Exported ' + filename);
+}
+
+/* ---------- Markdown ---------- */
+function renderMarkdown(text) {
+  try {
+    if (typeof marked === 'undefined') return escapeHtml(text);
+    marked.setOptions({
+      breaks: true,      // single \n becomes <br>
+      gfm: true,         // tables, strikethrough, etc.
+      mangle: false,
+      headerIds: false,
+    });
+    const html = marked.parse(String(text ?? ''));
+    if (typeof DOMPurify !== 'undefined') {
+      return DOMPurify.sanitize(html);
+    }
+    return html;
+  } catch (e) {
+    return escapeHtml(text);
+  }
+}
+
+function setConversationNote(value) {
+  state.conversationNotes[state.currentIndex] = value;
+  scheduleSave();
+}
+
+/* ---------- Document editing & version history (docx mode only) ---------- */
+
+const MAX_HISTORY_PER_SECTION = 30;       // cap to keep storage bounded
+const SNAPSHOT_DEBOUNCE_MS = 2500;        // idle time before a snapshot is captured
+const SNAPSHOT_MIN_CHAR_DELTA = 80;       // OR this many chars changed since last snapshot
+
+let snapshotTimers = {};   // per-section debounce timers
+
+/** Ensure the edit-state slot exists for a section. */
+function _ensureEditState(section) {
+  if (!state.sectionEdits[section]) {
+    const doc = state.sectionDocuments[section];
+    state.sectionEdits[section] = {
+      currentHtml: doc?.html || '',
+      history: [],
+    };
+  }
+  return state.sectionEdits[section];
+}
+
+function enterEditMode() {
+  if (!state.activeSectionTab) return;
+  if (state.showHistory) state.showHistory = false;
+  state.editingSection = state.activeSectionTab;
+  state.selectedHistoryTs = null;
+  _ensureEditState(state.activeSectionTab);
+  refreshDocBody();
+  // Move focus to the editor for immediate typing
+  requestAnimationFrame(() => {
+    const ed = document.querySelector('.conv-text.editor');
+    if (ed) ed.focus();
+  });
+}
+
+function exitEditMode() {
+  if (state.editingSection) {
+    // Capture a final snapshot if there's a pending unflushed edit
+    flushSnapshot(state.editingSection, 'Edit session');
+  }
+  state.editingSection = null;
+  refreshDocBody();
+}
+
+function onDocumentInput(el) {
+  const section = state.editingSection;
+  if (!section) return;
+  const edit = _ensureEditState(section);
+  edit.currentHtml = el.innerHTML;
+  scheduleSave();
+  // Debounced snapshot
+  clearTimeout(snapshotTimers[section]);
+  snapshotTimers[section] = setTimeout(() => maybeSnapshot(section), SNAPSHOT_DEBOUNCE_MS);
+}
+
+function onDocumentBlur() {
+  if (state.editingSection) {
+    flushSnapshot(state.editingSection, 'Edit session');
+  }
+}
+
+/** Capture a snapshot if the current content differs meaningfully from the last
+ * snapshot (or from the original baseline if no snapshots exist yet). */
+function maybeSnapshot(section) {
+  const edit = state.sectionEdits[section];
+  if (!edit) return;
+  const last = edit.history.length ? edit.history[edit.history.length - 1].html
+                                   : (state.sectionDocuments[section]?.originalHtml || '');
+  if (last === edit.currentHtml) return;
+  // Only snapshot if at least N characters changed (or we have no history yet)
+  const deltaChars = Math.abs((edit.currentHtml || '').length - (last || '').length);
+  if (edit.history.length > 0 && deltaChars < SNAPSHOT_MIN_CHAR_DELTA) return;
+  pushSnapshot(section, autoSummarize(last, edit.currentHtml));
+}
+
+/** Force a snapshot regardless of size — used when leaving edit mode. */
+function flushSnapshot(section, summary) {
+  const edit = state.sectionEdits[section];
+  if (!edit) return;
+  const last = edit.history.length ? edit.history[edit.history.length - 1].html
+                                   : (state.sectionDocuments[section]?.originalHtml || '');
+  if (last === edit.currentHtml) return;
+  pushSnapshot(section, summary || autoSummarize(last, edit.currentHtml));
+}
+
+function pushSnapshot(section, summary) {
+  const edit = state.sectionEdits[section];
+  edit.history.push({
+    ts: Date.now(),
+    html: edit.currentHtml,
+    summary,
+  });
+  // Cap history so storage doesn't grow unbounded. Drop oldest, but always
+  // keep the very first edit so the user can see "first change made".
+  while (edit.history.length > MAX_HISTORY_PER_SECTION) {
+    edit.history.splice(1, 1);
+  }
+  scheduleSave();
+  // If we're not actively editing, do a full refresh so the toolbar / history
+  // count updates. While editing, only refresh the toolbar so we don't
+  // re-render the editor (which would lose the cursor).
+  if (state.editingSection !== section) {
+    refreshDocBody();
+  } else {
+    refreshDocToolbar();
+  }
+}
+
+/** Update just the toolbar above the editor — avoids killing the cursor. */
+function refreshDocToolbar() {
+  const sec = state.activeSectionTab;
+  if (!sec) return;
+  const doc = state.sectionDocuments[sec];
+  if (!doc) return;
+  const editState = state.sectionEdits[sec];
+  const isEditing = state.editingSection === sec;
+  const hasEdits = doc && editState && editState.currentHtml !== doc.originalHtml;
+  const historyCount = editState ? editState.history.length : 0;
+  const toolbar = document.querySelector('.doc-toolbar');
+  if (!toolbar) return;
+  toolbar.innerHTML = `
+    <span class="doc-label-text">
+      ${escapeHtml(sec)}
+      ${doc ? `<span class="docx-filename-tag">${escapeHtml(doc.filename)}</span>` : ''}
+      ${hasEdits ? '<span class="edit-tag">edited</span>' : ''}
+    </span>
+    <div class="doc-toolbar-actions">
+      ${historyCount > 0 ? `
+        <button class="doc-tool-btn ${state.showHistory ? 'active' : ''}" onclick="toggleHistory()" title="Show version history">
+          History · <span class="history-count">${historyCount}</span>
+        </button>
+      ` : ''}
+      ${isEditing
+        ? `<button class="doc-tool-btn primary" onclick="exitEditMode()" title="Finish editing">Done</button>`
+        : `<button class="doc-tool-btn" onclick="enterEditMode()" title="Edit this document">✎ Edit</button>`}
+    </div>
+  `;
+}
+
+/** Lightweight human summary of what changed between two HTML strings, based
+ * on character-count delta. Detailed diffs are computed at export time. */
+function autoSummarize(before, after) {
+  const a = (before || '').length;
+  const b = (after || '').length;
+  const delta = b - a;
+  if (delta === 0) return 'Minor reformatting';
+  if (delta > 0) return `+${delta} characters added`;
+  return `${delta} characters removed`;
+}
+
+function toggleHistory() {
+  state.showHistory = !state.showHistory;
+  if (!state.showHistory) state.selectedHistoryTs = null;
+  refreshDocBody();
+}
+
+function previewSnapshot(ts) {
+  state.selectedHistoryTs = ts;
+  refreshDocBody();
+}
+
+function exitHistoryPreview() {
+  state.selectedHistoryTs = null;
+  refreshDocBody();
+}
+
+function restoreSnapshot(ts) {
+  const section = state.activeSectionTab;
+  const edit = _ensureEditState(section);
+  let html;
+  if (ts === 0) {
+    html = state.sectionDocuments[section]?.originalHtml || '';
+  } else {
+    const snap = edit.history.find(h => h.ts === ts);
+    if (!snap) return;
+    html = snap.html;
+  }
+  edit.currentHtml = html;
+  state.selectedHistoryTs = null;
+  state.showHistory = false;
+  flushSnapshot(section, 'Restored from history');
+  refreshDocBody();
+  toast('Restored from history');
+}
+
+/** Re-render just the conversation body (cheaper than full renderAnnotate). */
+function refreshDocBody() {
+  const conv = state.conversations[state.currentIndex];
+  const body = document.getElementById('conv-body');
+  if (body && conv) body.innerHTML = renderConvBody(conv, state.inputMode === 'docx');
+}
+
+/* ---------- Docx export (with inline track-changes-style marks) ---------- */
+
+/** Compare two HTML strings at the plain-text level and produce a sequence of
+ * diff ops: [{type: 'equal'|'insert'|'delete', text}, ...]
+ * Uses diff_match_patch when available, falls back to a simple line diff. */
+function diffPlainText(before, after) {
+  const b = htmlToPlainText(before || '');
+  const a = htmlToPlainText(after || '');
+  if (typeof diff_match_patch === 'function') {
+    const dmp = new diff_match_patch();
+    const raw = dmp.diff_main(b, a);
+    dmp.diff_cleanupSemantic(raw);
+    // Some builds return tuples [op, text]; others return objects {0: op, 1: text}.
+    // Index access handles both shapes without destructuring.
+    return raw.map(entry => {
+      const op = entry[0];
+      const text = entry[1];
+      return {
+        type: op === 0 ? 'equal' : (op === 1 ? 'insert' : 'delete'),
+        text,
+      };
+    });
+  }
+  // Fallback: paragraph-level diff
+  const beforeParas = b.split('\n');
+  const afterParas = a.split('\n');
+  const ops = [];
+  if (b === a) return [{ type: 'equal', text: b }];
+  ops.push({ type: 'delete', text: b });
+  ops.push({ type: 'insert', text: a });
+  return ops;
+}
+
+/** Build an array of docx-library Paragraph objects that visually shows the
+ * diff: deletions in red strikethrough, insertions in green underline.
+ * Always returns an array (possibly empty). */
+function buildDocxParagraphsWithDiff(beforeHtml, afterHtml) {
+  if (!window.docx) return [];
+  const { Paragraph, TextRun } = window.docx;
+  const ops = diffPlainText(beforeHtml, afterHtml);
+  // Split into paragraphs — paragraph boundaries are newlines in our plain text.
+  // We'll accumulate runs into the current paragraph, breaking on newlines that
+  // appear inside 'equal' or 'insert' ops. For simplicity, we put each op's
+  // text into runs split by newline and start a new paragraph on each break.
+  const paragraphs = [];
+  let currentRuns = [];
+  const styleFor = (type) => {
+    if (type === 'delete') return { color: 'C0392B', strike: true };
+    if (type === 'insert') return { color: '1D4A3E', underline: { type: 'single' } };
+    return {};
+  };
+  const flushParagraph = () => {
+    paragraphs.push(new Paragraph({ children: currentRuns.length ? currentRuns : [new TextRun('')] }));
+    currentRuns = [];
+  };
+  for (const op of ops) {
+    const lines = (op.text || '').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]) {
+        currentRuns.push(new TextRun({ text: lines[i], ...styleFor(op.type) }));
+      }
+      if (i < lines.length - 1) flushParagraph();
+    }
+  }
+  if (currentRuns.length) flushParagraph();
+  return paragraphs;
+}
+
+/** Build paragraphs from plain text (no diff marks) — used for the clean version.
+ * Always returns an array (possibly with a single empty paragraph). */
+function buildDocxParagraphsPlain(html) {
+  if (!window.docx) return [];
+  const { Paragraph, TextRun } = window.docx;
+  const text = htmlToPlainText(html || '');
+  const lines = text ? text.split('\n') : [''];
+  return lines.map(line =>
+    new Paragraph({ children: [new TextRun(line || '')] })
+  );
+}
+
+/** Export all sections as individual .docx files AND a combined .docx, all
+ * inside a single .zip-equivalent (we'll trigger separate downloads since the
+ * docx library doesn't zip on its own). For each section produces:
+ *   - <Section>.docx                       — clean edited version
+ *   - <Section>.tracked.docx               — track-changes-style diff version
+ * Plus one combined <case>-combined.docx with all sections back-to-back.  */
+async function exportEditedDocuments() {
+  if (state.inputMode !== 'docx') { toast('Document export only available in docx mode'); return; }
+  if (!window.docx) { toast('Document export library not loaded'); return; }
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = window.docx;
+
+  const caseTag = (state.caseName || 'case').replace(/[^a-zA-Z0-9_\-]+/g, '_').slice(0, 40);
+
+  // Pre-build combined children so a per-section failure doesn't kill it
+  const combinedChildren = [];
+  combinedChildren.push(new Paragraph({
+    text: state.caseName || 'Structured Analysis',
+    heading: HeadingLevel.TITLE,
+    alignment: AlignmentType.CENTER,
+  }));
+  combinedChildren.push(new Paragraph({ children: [new TextRun({
+    text: `Exported ${new Date().toLocaleString()}`,
+    italics: true, color: '837C6C',
+  })] }));
+  combinedChildren.push(new Paragraph(''));
+
+  let exportCount = 0;
+  let errors = [];
+
+  for (const section of state.taxonomySectionNames) {
+    const doc = state.sectionDocuments[section];
+    if (!doc) continue;
+    const edit = state.sectionEdits[section];
+    const currentHtml = edit ? edit.currentHtml : doc.html;
+
+    // ---- Per-section: clean current version ----
+    try {
+      const cleanParas = buildDocxParagraphsPlain(currentHtml);
+      const cleanDoc = new Document({
+        creator: 'Annotation Studio',
+        title: `${state.caseName || ''} — ${section}`,
+        sections: [{ children: [
+          new Paragraph({ text: section, heading: HeadingLevel.HEADING_1 }),
+          new Paragraph(''),
+          ...cleanParas,
+        ]}],
+      });
+      const cleanBlob = await Packer.toBlob(cleanDoc);
+      triggerDownload(cleanBlob, `${caseTag}-${slugify(section)}.docx`);
+      exportCount++;
+    } catch (e) {
+      console.error(`[export] clean ${section} failed:`, e);
+      errors.push(`${section} (clean): ${e.message}`);
+    }
+
+    // ---- Per-section: tracked (diff) version, only if edits exist ----
+    if (currentHtml !== doc.originalHtml) {
+      try {
+        const trackedParas = buildDocxParagraphsWithDiff(doc.originalHtml, currentHtml);
+        const trackedDoc = new Document({
+          creator: 'Annotation Studio',
+          title: `${state.caseName || ''} — ${section} (tracked changes)`,
+          sections: [{ children: [
+            new Paragraph({ text: `${section} — Tracked Changes`, heading: HeadingLevel.HEADING_1 }),
+            new Paragraph({ children: [new TextRun({
+              text: 'Deletions appear in red strikethrough; insertions appear in green underline.',
+              italics: true, color: '837C6C',
+            })] }),
+            new Paragraph(''),
+            ...trackedParas,
+          ]}],
+        });
+        const trackedBlob = await Packer.toBlob(trackedDoc);
+        triggerDownload(trackedBlob, `${caseTag}-${slugify(section)}.tracked.docx`);
+        exportCount++;
+      } catch (e) {
+        console.error(`[export] tracked ${section} failed:`, e);
+        errors.push(`${section} (tracked): ${e.message}`);
+      }
+    }
+
+    // ---- Add to combined ----
+    try {
+      combinedChildren.push(new Paragraph({ text: section, heading: HeadingLevel.HEADING_1 }));
+      combinedChildren.push(new Paragraph(''));
+      const paras = buildDocxParagraphsPlain(currentHtml);
+      // buildDocxParagraphsPlain might return a non-iterable in error cases — guard
+      if (Array.isArray(paras)) {
+        combinedChildren.push(...paras);
+      }
+      combinedChildren.push(new Paragraph(''));
+    } catch (e) {
+      console.error(`[export] combined append ${section} failed:`, e);
+      errors.push(`${section} (combined): ${e.message}`);
+    }
+  }
+
+  // ---- Combined doc ----
+  try {
+    const combinedDoc = new Document({
+      creator: 'Annotation Studio',
+      title: state.caseName || 'Structured Analysis',
+      sections: [{ children: combinedChildren }],
+    });
+    const combinedBlob = await Packer.toBlob(combinedDoc);
+    triggerDownload(combinedBlob, `${caseTag}-combined.docx`);
+    exportCount++;
+  } catch (e) {
+    console.error(`[export] combined failed:`, e);
+    errors.push(`Combined: ${e.message}`);
+  }
+
+  if (errors.length) {
+    toast(`Exported ${exportCount} (with ${errors.length} error${errors.length > 1 ? 's' : ''} — see console)`);
+  } else {
+    toast(`Exported ${exportCount} document${exportCount === 1 ? '' : 's'}`);
+  }
+}
+
+function slugify(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Strip HTML tags from a docx-rendered fragment so it lives nicely in a
+ * spreadsheet cell. Preserves line breaks between paragraphs and list items. */
+function htmlToPlainText(html) {
+  if (!html) return '';
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  // Replace block elements with newlines before reading textContent
+  tmp.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, br, tr').forEach(el => {
+    el.insertAdjacentText('beforeend', '\n');
+  });
+  return tmp.textContent.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/* ---------- Helpers ---------- */
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function escapeAttr(s) { return escapeHtml(s); }
+function pad(n, w = 3) { return String(n).padStart(w, '0'); }
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60) + ' min ago';
+  if (diff < 86400) return Math.floor(diff/3600) + ' hr ago';
+  return d.toLocaleDateString();
+}
+
+/* ---------- Keyboard ---------- */
+document.addEventListener('keydown', (e) => {
+  if (state.view !== 'annotate') return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'textarea' || tag === 'input' || tag === 'select') return;
+  if (state.inputMode === 'docx') {
+    // In docx mode arrows cycle through section tabs
+    const sections = state.taxonomySectionNames;
+    if (!sections.length) return;
+    const idx = sections.indexOf(state.activeSectionTab);
+    if (e.key === 'ArrowLeft' && idx > 0) {
+      setActiveSection(sections[idx - 1]); e.preventDefault();
+    } else if (e.key === 'ArrowRight' && idx < sections.length - 1) {
+      setActiveSection(sections[idx + 1]); e.preventDefault();
+    }
+    return;
+  }
+  if (e.key === 'ArrowLeft') { goTo(state.currentIndex - 1); e.preventDefault(); }
+  else if (e.key === 'ArrowRight') { goTo(state.currentIndex + 1); e.preventDefault(); }
+});
+
+/* ---------- Boot ---------- */
+(async function init() {
+  const saved = await loadSession();
+  if (saved && saved.conversations && saved.conversations.length) {
+    renderSetup(saved);
+  } else {
+    renderSetup(null);
+  }
+})();
+</script>
+</body>
+</html>
